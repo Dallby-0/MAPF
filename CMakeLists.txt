@@ -3,4 +3,6 @@ project(MAPF)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(MAPF main.cpp)
+add_executable(MAPF main.cpp
+        AStar.h
+        CBSPlanner.h)

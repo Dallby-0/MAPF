@@ -1,16 +1,48 @@
-#include <iostream>
+#include <bits/stdc++.h>
+using namespace std;
 
-// TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
-int main() {
-    // TIP Press <shortcut actionId="RenameElement"/> when your caret is at the <b>lang</b> variable name to see how CLion can help you rename it.
-    auto lang = "C++";
-    std::cout << "Hello and welcome to " << lang << "!\n";
 
-    for (int i = 1; i <= 10; i++) {
-        // TIP Press <shortcut actionId="Debug"/> to start debugging your code. We have set one <icon src="AllIcons.Debugger.Db_set_breakpoint"/> breakpoint for you, but you can always add more by pressing <shortcut actionId="ToggleLineBreakpoint"/>.
-        std::cout << "i = " << i << std::endl;
+struct AStar {
+    vector<vector<bool>> worldMap;
+    set<int> st;
+}aStar;
+
+struct CBSPlanner {
+
+}planner;
+
+void init() {
+    const string map = "Berlin_1_256";
+    const bool useEven = true;
+    const int id = 1;
+    const string scen =  useEven ? "scen-even" : "scen-random";
+    const string fileName = map + "-" + (useEven ? "even" : "random") + "-" + to_string(id);
+    const string scenPath = "../maps/" + map + "/" + scen + "/" + fileName + ".scen";
+    const string mapPath = "../maps/" + map + "/" + map + ".map";
+    cout << "mapPath:" << mapPath << endl;
+    cout << "scenPath:" << scenPath << endl;
+    //read map
+    freopen(mapPath.c_str(), "r", stdin);
+    string line;
+    getline(cin, line);
+    cout << line <<endl;
+    auto &worldMap = aStar.worldMap;
+    string buf;
+    int height, width;
+    cin >> buf >> height >> buf >> width;
+    cout <<"height/width: " << height << " " << width << endl;
+    for (int i = 0; i < height; i++) {
+        getline(cin, line);
+        worldMap.emplace_back();
+        for (char ch : line) {
+            if (ch == '.') worldMap[i].push_back(false);
+            else worldMap[i].push_back(true);
+        }
     }
 
+}
+
+int main() {
+    init();
     return 0;
-    // TIP See CLion help at <a href="https://www.jetbrains.com/help/clion/">jetbrains.com/help/clion/</a>. Also, you can try interactive lessons for CLion by selecting 'Help | Learn IDE Features' from the main menu.
 }
