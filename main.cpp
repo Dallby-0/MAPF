@@ -13,6 +13,7 @@ namespace D {
     // int dx[9] = {-1,0,1,0,-1,1,1,-1,0};
     // int dy[9] = {0,1,0,-1,1,1,-1,-1,0};
     //被ai骗了 本来以为找的最优解网站支持八向 特意写的8向
+    enum{U,R,D,L,O};
     int dx[5] = {-1,0,1,0,0};
     int dy[5] = {0,1,0,-1,0};
 }
@@ -161,12 +162,13 @@ struct Conflict {
     Point posA, posB; //if posA == posB then is position conflict 另外时间和位置均为发生冲突之后
     int time;
     Conflict(int idA, int idB, Point posA, Point posB, int time):idA(idA),idB(idB),posA(posA),posB(posB),time(time){}
+    Conflict(){}
 };
 
-struct CBSNode {
+struct CBSNode {//目前lastConstraintTime要手动设置
     bool calculated = false;
     bool ok; //是否可以在当前冲突下找到路径（不限制无冲突）
-    bool haveConflict;
+    bool hasConflict;
     vector<set<int>> blockedCodesList;
     int presumedMinCost, lastConstraintTime;
     Conflict firstConflict;
@@ -208,7 +210,7 @@ struct CBSPlanner {
                     if (i < v.size()) {
                         if (positionToId.contains(v[i])) {
                             //位置冲突
-                            node.haveConflict = true;
+                            node.hasConflict = true;
                             node.firstConflict = Conflict(positionToId[v[i]], id, v[i], v[i], i);
                             break;
                         }
@@ -226,7 +228,7 @@ struct CBSPlanner {
                                 auto &vb = paths[idB];
                                 if (vb[i-1] == va[i]) {//考虑到idB在本轮有映射，所以不用考虑越界
                                     //边冲突
-                                    node.haveConflict = true;
+                                    node.hasConflict = true;
                                     node.firstConflict = Conflict(idA, idB, va[i], vb[i], i);
                                     break;
                                 }
@@ -235,16 +237,86 @@ struct CBSPlanner {
                         idA++;
                     }
                 }
-                if (node.haveConflict) { //找到一个冲突即可
+                if (node.hasConflict) { //找到一个冲突即可
                     break;
                 }
             }
+        }
+        if (node.ok) {
+            node.presumedMinCost = 0;
+            for (auto &v : paths) { //暂时（由于只是作业，所以估计是永远）用不考虑新冲突的代价作为排序用代价
+                node.presumedMinCost += v.size() - 1;
+            }
+            // for (auto & s : node.blockedCodesList) {
+            //     node.presumedMinCost += s.size();
+            // }
+            // node.presumedMinCost += node.hasConflict;
         }
         node.calculated = true;
     }
 
     void solve() {
-
+        CBSNode initialNode;
+        initialNode.lastConstraintTime = 0;
+        calculateNode(initialNode);
+        priority_queue<CBSNode> pq;
+        pq.push(initialNode);
+        int currentMinCost = INT_MAX;
+        while (!pq.empty()) {
+            CBSNode node = pq.top();
+            pq.pop();
+            if (node.presumedMinCost >= currentMinCost) {
+                break;
+            }
+            if (!node.hasConflict) {
+                currentMinCost = node.presumedMinCost;
+            }
+            else { //拆成两份塞进去计算！！
+                CBSNode lch, rch;
+                lch.blockedCodesList = rch.blockedCodesList = node.blockedCodesList;
+                Conflict conflict = node.firstConflict;
+                int cTime = conflict.time;
+                int constraintCodeA, constraintCodeB;
+                if (conflict.posA == conflict.posB) {
+                    Point pos = conflict.posA;
+                    int constraintCode = Constraint::encode(pos.x,pos.y,cTime,4);
+                    constraintCodeA = constraintCodeB = constraintCode;
+                }
+                else {
+                    //考虑到t是冲突发生后的时间，所以应该在t-1加入限制
+                    cTime--;
+                    int dirA, dirB;
+                    if (conflict.posA.x != conflict.posB.x) {
+                        //再次提醒，x是纵轴，因为x在前，i在前！
+                        //另外这是冲突移动之后的坐标
+                        //如果A的x较小，A最终在上，那意味着A向上了，所以禁止A向上
+                        dirA = D::U;
+                        dirB = D::D;
+                        if (conflict.posA.x > conflict.posB.x) {
+                            swap(dirA, dirB);
+                        }
+                    }
+                    else {
+                        dirA = D::L;
+                        dirB = D::R;
+                        if (conflict.posA.y > conflict.posB.y) {
+                            swap(dirA, dirB);
+                        }
+                    }
+                    Point pposA = conflict.posB, pposB = conflict.posA;
+                    constraintCodeA = Constraint::encode(pposA.x, pposA.y, cTime, dirA);
+                    constraintCodeB = Constraint::encode(pposB.x , pposB.y, cTime, dirB);
+                }
+                lch.blockedCodesList[conflict.idA].insert(constraintCodeA);
+                rch.blockedCodesList[conflict.idB].insert(constraintCodeB);
+                calculateNode(lch);
+                calculateNode(rch);
+                int lastConstraintTime = max(node.lastConstraintTime, cTime);
+                lch.lastConstraintTime = rch.lastConstraintTime = lastConstraintTime;
+                pq.push(lch);
+                pq.push(rch);
+            }
+        }
     }
 }planner;
 
