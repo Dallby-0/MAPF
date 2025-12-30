@@ -238,15 +238,23 @@ struct CBSPlanner {
                 map<Point, int> positionToId;
                 int id = 0;
                 for (auto &v : paths) {
+                    Point curPoint;
                     if (i < v.size()) {
-                        if (positionToId.contains(v[i])) {
+                        if (i < v.size()) {
+                            curPoint = v[i];
+                        }
+                        else {
+                            curPoint = v.back(); //停留也算位置
+                        }
+                        if (positionToId.contains(curPoint)) {
                             //位置冲突
                             cout << "found posconf:" << v[i].x <<" " << v[i].y <<endl;
                             node.hasConflict = true;
                             node.firstConflict = Conflict(positionToId[v[i]], id, v[i], v[i], i);
                             break;
-                        }
-                        positionToId[v[i]] = id;
+                        }//todo 修复后出现了同样的位置冲突？
+                        //我懂了，如果要让已经结束的让位，那要一次性添加一大堆约束 麻了 过分的设定
+                        positionToId[curPoint] = id;
                     }
                     id++;
                 }
@@ -352,10 +360,10 @@ struct CBSPlanner {
                     constraintCodeB = Constraint::encode(pposB.x , pposB.y, cTime, dirB);
                 }
                 if (lch.blockedCodesList[conflict.idA].contains(constraintCodeA)) {
-                    cout << "bug 重复禁止动作A\n";
+                    cout << "bug A duplicated\n";
                 }
                 if (rch.blockedCodesList[conflict.idB].contains(constraintCodeB)) {
-                    cout << "bug 重复禁止动作B\n";
+                    cout << "bug B duplicated\n";
                 }
                 lch.blockedCodesList[conflict.idA].insert(constraintCodeA);
                 rch.blockedCodesList[conflict.idB].insert(constraintCodeB);
@@ -415,7 +423,7 @@ void init() {
     int cnt = 0;
     planner.robotCount = 0;
     while (getline(cin, line)) {
-        if (++cnt > 8) break;
+        if (++cnt > 9) break;
         stringstream ss(line);
         int bucket;
         string mapName;
