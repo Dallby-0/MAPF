@@ -91,6 +91,7 @@ struct AStar {
         //     return lhs.t + minCost(lhs.x, lhs.y, ex, ey) > rhs.t + minCost(rhs.x, rhs.y, ex, ey);
         // };
         //priority_queue<AStarNode,vector<AStarNode>, decltype(cmp)> pq(cmp); //这种情况不太适合用operator 结果被迫学习c++特性
+        cout << "astar " << sx <<" " << sy <<" " << ex <<" " << ey << " " << blockedCodes.size() << endl;
         priority_queue<AStarNode> pq;
         auto initialNode = AStarNode(sx, sy, 0, minCost(sx, sy, ex, ey));
         pq.push(initialNode);
@@ -99,9 +100,26 @@ struct AStar {
         set<pair<int,int>> visitedAfterConstraints; //所有约束结束之后，等效于普通A*，所以记录空间访问
         bool ok = false;
         int finalNodeCode;
+        int cnt = 0;
         while (!pq.empty()) {
+            //cout << "aspq\n";
             AStarNode node = pq.top();
+            cnt ++;
+            //if (cnt > 60000) {
+            //}
+
             pq.pop();
+            if (node.t > lastConstraintTime) {
+                if (visitedAfterConstraints.count({node.x, node.y})) {
+                    //cout <<" pass!" << endl;
+                    continue;
+                }
+                visitedAfterConstraints.insert({node.x, node.y});
+            }
+            if (cnt > 36000) {
+                cout << node.x << " " << node.y << " " << node.t << " " << node.predictedCost << " " << lastConstraintTime<<endl;
+            }
+            //cout << node.x << " " << node.y << " " << node.t << " " << node.predictedCost << " " << lastConstraintTime<<endl;
             if (node.x == ex && node.y == ey) {
                 ok = true;
                 finalNodeCode = node.encode();
@@ -111,23 +129,28 @@ struct AStar {
                 if (k < 4) {
                     //规定在当前点不能进行朝向为k的动作（边冲突）
                     if (int codeAction = Constraint::encode(node.x, node.y, node.t, k); blockedCodes.contains(codeAction)){
-                    continue;
+                        continue;
                     }
                     //点了下编译器代码优化成这一行了  这是c++xx？
                 }
                 int nx = node.x + D::dx[k];
                 int ny = node.y + D::dy[k];
+                if (nx < 0 || nx >= M::height || ny < 0 || ny >= M::width) {
+                    continue;
+                }
                 if (M::worldMap[nx][ny]) {
                     continue;
                 }
                 int nt = node.t + 1;
-                if (nt > lastConstraintTime) {
-
-                }
                 if (int codeNext = Constraint::encode(nx, ny, nt, 4); blockedCodes.contains(codeNext))
                     continue;
                 AStarNode newNode(nx, ny, nt, nt + minCost(nx, ny, ex, ey));
                 int newNodeCode = newNode.encode();
+                if (nt > lastConstraintTime) {
+                    if (visitedAfterConstraints.contains({newNode.x, newNode.y})) {
+                        continue;
+                    }
+                }
                 if (visited.contains(newNodeCode)) {
                     continue;
                 }
@@ -137,6 +160,7 @@ struct AStar {
                 //int cost = node.cost + (k >= 4 ? sq2 : 1);
             }
         }
+        cout << "astar done " << ok <<endl;
         if (ok) {
             path.clear();
             int currentNodeCode = finalNodeCode;
@@ -185,6 +209,7 @@ struct CBSPlanner {
     vector<Robot> robots;
     int robotCount;
     void calculateNode(CBSNode &node) {
+        cout << "cal\n";
         vector<vector<Point>> paths;
         paths.resize(robotCount);
         node.ok = true;
@@ -195,6 +220,7 @@ struct CBSPlanner {
                 node.ok = false;
             }
         }
+        cout << "cal1\n";
         if (node.ok) {//找新的冲突，低效实现
             int mxLen = 0;
             for (auto &v : paths) {
@@ -253,16 +279,19 @@ struct CBSPlanner {
             // node.presumedMinCost += node.hasConflict;
         }
         node.calculated = true;
+        cout << "cal done\n";
     }
 
     void solve() {
         CBSNode initialNode;
         initialNode.lastConstraintTime = 0;
+        initialNode.blockedCodesList.resize(robotCount);
         calculateNode(initialNode);
         priority_queue<CBSNode> pq;
         pq.push(initialNode);
         int currentMinCost = INT_MAX;
         while (!pq.empty()) {
+            //cout << "hi";
             CBSNode node = pq.top();
             pq.pop();
             if (node.presumedMinCost >= currentMinCost) {
@@ -270,8 +299,10 @@ struct CBSPlanner {
             }
             if (!node.hasConflict) {
                 currentMinCost = node.presumedMinCost;
+                cout << "solved! cost: " << currentMinCost << endl;
             }
             else { //拆成两份塞进去计算！！
+                cout << "conflict\n";
                 CBSNode lch, rch;
                 lch.blockedCodesList = rch.blockedCodesList = node.blockedCodesList;
                 Conflict conflict = node.firstConflict;
@@ -331,7 +362,7 @@ void init() {
     cout << "mapPath:" << mapPath << endl;
     cout << "scenPath:" << scenPath << endl;
     //read map
-    freopen(mapPath.c_str(), "r", stdin);
+    auto fp = freopen(mapPath.c_str(), "r", stdin);
     string line;
     getline(cin, line);
     cout << line <<endl;
@@ -341,25 +372,47 @@ void init() {
     cin >> buf >> height >> buf >> width;
     M::height = height;
     M::width = width;
+     //漏了这两行 调试过于折磨
+    cin >> line;
+    cout << line <<endl;
     cout <<"height/width: " << height << " " << width << endl;
     for (int i = 0; i < height; i++) {
-        getline(cin, line);
+        cin >> line;
         worldMap.emplace_back();
         for (char ch : line) {
             if (ch == '.') worldMap[i].push_back(false);
             else worldMap[i].push_back(true);
         }
     }
+    cout << "real map size " << worldMap.size() << " " << worldMap[0].size() << endl;
+    clearerr(stdin); //我tm被这个问题坑死了
+    cin.clear(); //tmd
+    freopen(scenPath.c_str(), "r", stdin);
+
+    line = "123";
+    getline(cin, line);
+    cout << line << endl;
+    int cnt = 0;
+    planner.robotCount = 0;
+    while (getline(cin, line)) {
+        if (++cnt > 3) break;
+        stringstream ss(line);
+        int bucket;
+        string mapName;
+        int h,w;
+        Robot robot;
+        ss >> bucket >> mapName >> h >> w >> robot.sy >> robot.sx >> robot.ey >> robot.ex;
+        planner.robots.push_back(robot);
+        planner.robotCount++;
+    }
+    cout << "init done\n";
 }
 
 int main() {
     init();
     vector<Point> path;
     set<int> blockedCodes;
-    aStar.findPath(92, 220, 65, 194, blockedCodes, 1e9, path);
-    cout << path.size() << endl;
-    for (auto p : path) {
-        cout << p.x << " " << p.y << endl;
-    }
+    //aStar.findPath(92, 220, 65, 194, blockedCodes, 1e9, path);
+    planner.solve();
     return 0;
 }
