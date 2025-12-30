@@ -76,7 +76,7 @@ struct AStar {
         //return res;
         return abs(ex - sx) + abs(ey - sy);
     }
-    bool findPath (int sx, int sy, int ex, int ey, const set<int> &blockedCodes ,vector<Point> &path) {
+    bool findPath (int sx, int sy, int ex, int ey, const set<int> &blockedCodes, int lastConstraintTime, vector<Point> &path) {//考虑
         // auto cmp = [=](const AStarNode &lhs, const AStarNode &rhs) {
         //     return lhs.t + minCost(lhs.x, lhs.y, ex, ey) > rhs.t + minCost(rhs.x, rhs.y, ex, ey);
         // };
@@ -85,7 +85,8 @@ struct AStar {
         auto initialNode = AStarNode(sx, sy, 0, minCost(sx, sy, ex, ey));
         pq.push(initialNode);
         map<int, int> preMap;
-        set<int> visited; //其实可以用preMap代替visited
+        set<int> visited; //其实可以用preMap代替visited，随便了，可读性>常数
+        set<pair<int,int>> visitedAfterConstraints; //所有约束结束之后，等效于普通A*，所以记录空间访问
         bool ok = false;
         int finalNodeCode;
         while (!pq.empty()) {
@@ -110,6 +111,9 @@ struct AStar {
                     continue;
                 }
                 int nt = node.t + 1;
+                if (nt > lastConstraintTime) {
+
+                }
                 if (int codeNext = Constraint::encode(nx, ny, nt, 4); blockedCodes.contains(codeNext))
                     continue;
                 AStarNode newNode(nx, ny, nt, nt + minCost(nx, ny, ex, ey));
@@ -176,14 +180,13 @@ void init() {
             else worldMap[i].push_back(true);
         }
     }
-
 }
 
 int main() {
     init();
     vector<Point> path;
     set<int> blockedCodes;
-    aStar.findPath(92, 220, 65, 194, blockedCodes, path);
+    aStar.findPath(92, 220, 65, 194, blockedCodes, 1e9, path);
     cout << path.size() << endl;
     for (auto p : path) {
         cout << p.x << " " << p.y << endl;
