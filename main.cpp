@@ -61,7 +61,16 @@ struct AStarNode {
 struct Point {
     int x, y;
     Point(const int x, const int y):x(x),y(y){}
-    Point(){x=0, y=0;}
+    Point(){x=-1, y=-1;}
+    bool operator < (const Point &rhs) const {
+        if (x == rhs.x) {
+            return y < rhs.y;
+        }
+        return x < rhs.x;
+    }
+    bool operator == (const Point &rhs) const {
+        return x == rhs.x && y == rhs.y;
+    }
 };
 
 struct AStar {
@@ -136,9 +145,9 @@ struct AStar {
                 path.emplace_back(node.x, node.y); //我靠 原来emplace_back这么好用
                 currentNodeCode = preMap[currentNodeCode];
             }
-            //不需要包含七点所以不用下面两行
+            //不需要包含起点所以不用下面两行，但是我决定包含起点
             //AStarNode node(currentNodeCode);
-            //path.emplace_back(sx, sy);
+            path.emplace_back(sx, sy);
             ranges::reverse(path); //ide的提示总会给出一些高级的东西。。
             return true;
         }
@@ -146,8 +155,97 @@ struct AStar {
     }
 }aStar;
 
-struct CBSPlanner {
+struct Conflict {
+    //bool isEdgeConflict = false; //default Position conflict
+    int idA, idB;
+    Point posA, posB; //if posA == posB then is position conflict 另外时间和位置均为发生冲突之后
+    int time;
+    Conflict(int idA, int idB, Point posA, Point posB, int time):idA(idA),idB(idB),posA(posA),posB(posB),time(time){}
+};
 
+struct CBSNode {
+    bool calculated = false;
+    bool ok; //是否可以在当前冲突下找到路径（不限制无冲突）
+    bool haveConflict;
+    vector<set<int>> blockedCodesList;
+    int presumedMinCost, lastConstraintTime;
+    Conflict firstConflict;
+    bool operator < (const CBSNode &rhs) const { //for pq
+        return presumedMinCost > rhs.presumedMinCost;
+    }
+};
+
+struct Robot {
+    int sx, sy, ex, ey;
+};
+
+struct CBSPlanner {
+    vector<Robot> robots;
+    int robotCount;
+    void calculateNode(CBSNode &node) {
+        vector<vector<Point>> paths;
+        paths.resize(robotCount);
+        node.ok = true;
+        for (int i = 0; i < robotCount; i++) {
+            auto &robot = robots[i];
+            bool havePath = aStar.findPath(robot.sx, robot.sy, robot.ex, robot.ey, node.blockedCodesList[i], node.lastConstraintTime, paths[i]);
+            if (!havePath) {
+                node.ok = false;
+            }
+        }
+        if (node.ok) {//找新的冲突，低效实现
+            int mxLen = 0;
+            for (auto &v : paths) {
+                mxLen = max(mxLen, (int)v.size());
+            }
+            //bool ok = true;
+
+
+            for (int i = 0; i < mxLen; i++) {
+                map<Point, int> positionToId;
+                int id = 0;
+                for (auto &v : paths) {
+                    if (i < v.size()) {
+                        if (positionToId.contains(v[i])) {
+                            //位置冲突
+                            node.haveConflict = true;
+                            node.firstConflict = Conflict(positionToId[v[i]], id, v[i], v[i], i);
+                            break;
+                        }
+                        positionToId[v[i]] = id;
+                    }
+                    id++;
+                }
+                if (i > 0){
+                    //先找目前是否有节点vb走到了上一轮<其他节点va>所在的位置，若有，则判断<其他节点va>本轮的位置是否与目前节点vb上一轮位置相同，很绕，所以写了注释
+                    int idA = 0;
+                    for (auto &va : paths) {
+                        if (i < va.size()) {
+                            if (positionToId.contains(va[i-1])) {
+                                int idB = positionToId[va[i-1]];
+                                auto &vb = paths[idB];
+                                if (vb[i-1] == va[i]) {//考虑到idB在本轮有映射，所以不用考虑越界
+                                    //边冲突
+                                    node.haveConflict = true;
+                                    node.firstConflict = Conflict(idA, idB, va[i], vb[i], i);
+                                    break;
+                                }
+                            }
+                        }
+                        idA++;
+                    }
+                }
+                if (node.haveConflict) { //找到一个冲突即可
+                    break;
+                }
+            }
+        }
+        node.calculated = true;
+    }
+
+    void solve() {
+
+    }
 }planner;
 
 void init() {
