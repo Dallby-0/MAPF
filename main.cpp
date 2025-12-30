@@ -91,6 +91,7 @@ struct AStar {
         //     return lhs.t + minCost(lhs.x, lhs.y, ex, ey) > rhs.t + minCost(rhs.x, rhs.y, ex, ey);
         // };
         //priority_queue<AStarNode,vector<AStarNode>, decltype(cmp)> pq(cmp); //这种情况不太适合用operator 结果被迫学习c++特性
+        //lastConstraintTime += 30;
         cout << "astar " << sx <<" " << sy <<" " << ex <<" " << ey << " " << blockedCodes.size() << endl;
         priority_queue<AStarNode> pq;
         auto initialNode = AStarNode(sx, sy, 0, minCost(sx, sy, ex, ey));
@@ -100,11 +101,11 @@ struct AStar {
         set<pair<int,int>> visitedAfterConstraints; //所有约束结束之后，等效于普通A*，所以记录空间访问
         bool ok = false;
         int finalNodeCode;
-        int cnt = 0;
+        //int cnt = 0;
         while (!pq.empty()) {
             //cout << "aspq\n";
             AStarNode node = pq.top();
-            cnt ++;
+            //cnt ++;
             //if (cnt > 60000) {
             //}
 
@@ -116,9 +117,9 @@ struct AStar {
                 }
                 visitedAfterConstraints.insert({node.x, node.y});
             }
-            if (cnt > 36000) {
-                cout << node.x << " " << node.y << " " << node.t << " " << node.predictedCost << " " << lastConstraintTime<<endl;
-            }
+            //if (cnt > 36000) {
+                //cout << node.x << " " << node.y << " " << node.t << " " << node.predictedCost << " " << lastConstraintTime<<endl;
+            //}
             //cout << node.x << " " << node.y << " " << node.t << " " << node.predictedCost << " " << lastConstraintTime<<endl;
             if (node.x == ex && node.y == ey) {
                 ok = true;
@@ -129,6 +130,7 @@ struct AStar {
                 if (k < 4) {
                     //规定在当前点不能进行朝向为k的动作（边冲突）
                     if (int codeAction = Constraint::encode(node.x, node.y, node.t, k); blockedCodes.contains(codeAction)){
+                        cout << "ASTAEDGEC: " << node.x << " " << node.y << " " << node.t << k <<endl;
                         continue;
                     }
                     //点了下编译器代码优化成这一行了  这是c++xx？
@@ -142,8 +144,10 @@ struct AStar {
                     continue;
                 }
                 int nt = node.t + 1;
-                if (int codeNext = Constraint::encode(nx, ny, nt, 4); blockedCodes.contains(codeNext))
+                if (int codeNext = Constraint::encode(nx, ny, nt, 4); blockedCodes.contains(codeNext)) {
+                    cout << "ASTARPOSC: " << nx << " " << ny << " " << nt <<endl;
                     continue;
+                }
                 AStarNode newNode(nx, ny, nt, nt + minCost(nx, ny, ex, ey));
                 int newNodeCode = newNode.encode();
                 if (nt > lastConstraintTime) {
@@ -212,6 +216,7 @@ struct CBSPlanner {
         cout << "cal\n";
         vector<vector<Point>> paths;
         paths.resize(robotCount);
+        node.hasConflict = false;
         node.ok = true;
         for (int i = 0; i < robotCount; i++) {
             auto &robot = robots[i];
@@ -220,8 +225,8 @@ struct CBSPlanner {
                 node.ok = false;
             }
         }
-        cout << "cal1\n";
         if (node.ok) {//找新的冲突，低效实现
+            cout << "cal1\n";
             int mxLen = 0;
             for (auto &v : paths) {
                 mxLen = max(mxLen, (int)v.size());
@@ -236,6 +241,7 @@ struct CBSPlanner {
                     if (i < v.size()) {
                         if (positionToId.contains(v[i])) {
                             //位置冲突
+                            cout << "found posconf:" << v[i].x <<" " << v[i].y <<endl;
                             node.hasConflict = true;
                             node.firstConflict = Conflict(positionToId[v[i]], id, v[i], v[i], i);
                             break;
@@ -244,6 +250,7 @@ struct CBSPlanner {
                     }
                     id++;
                 }
+                //cout <<"i size: " << i << " " << positionToId.size() << endl;
                 if (i > 0){
                     //先找目前是否有节点vb走到了上一轮<其他节点va>所在的位置，若有，则判断<其他节点va>本轮的位置是否与目前节点vb上一轮位置相同，很绕，所以写了注释
                     int idA = 0;
@@ -252,8 +259,9 @@ struct CBSPlanner {
                             if (positionToId.contains(va[i-1])) {
                                 int idB = positionToId[va[i-1]];
                                 auto &vb = paths[idB];
-                                if (vb[i-1] == va[i]) {//考虑到idB在本轮有映射，所以不用考虑越界
+                                if (idA != idB && vb[i-1] == va[i]) {//考虑到idB在本轮有映射，所以不用考虑越界
                                     //边冲突
+                                    cout << "found edgeconf\n";
                                     node.hasConflict = true;
                                     node.firstConflict = Conflict(idA, idB, va[i], vb[i], i);
                                     break;
@@ -264,6 +272,7 @@ struct CBSPlanner {
                     }
                 }
                 if (node.hasConflict) { //找到一个冲突即可
+                    cout << "found conf\n";
                     break;
                 }
             }
@@ -290,16 +299,20 @@ struct CBSPlanner {
         priority_queue<CBSNode> pq;
         pq.push(initialNode);
         int currentMinCost = INT_MAX;
+        int dreamedMinCost = initialNode.presumedMinCost;
         while (!pq.empty()) {
             //cout << "hi";
             CBSNode node = pq.top();
             pq.pop();
+            int totalCCount = 0;
+            for (auto s : node.blockedCodesList) totalCCount += s.size();
+            cout << "totalCCount: " << totalCCount << endl;
             if (node.presumedMinCost >= currentMinCost) {
                 break;
             }
             if (!node.hasConflict) {
                 currentMinCost = node.presumedMinCost;
-                cout << "solved! cost: " << currentMinCost << endl;
+                cout << "solved! cost: " << currentMinCost << " " << dreamedMinCost << endl;
             }
             else { //拆成两份塞进去计算！！
                 cout << "conflict\n";
@@ -338,12 +351,18 @@ struct CBSPlanner {
                     constraintCodeA = Constraint::encode(pposA.x, pposA.y, cTime, dirA);
                     constraintCodeB = Constraint::encode(pposB.x , pposB.y, cTime, dirB);
                 }
+                if (lch.blockedCodesList[conflict.idA].contains(constraintCodeA)) {
+                    cout << "bug 重复禁止动作A\n";
+                }
+                if (rch.blockedCodesList[conflict.idB].contains(constraintCodeB)) {
+                    cout << "bug 重复禁止动作B\n";
+                }
                 lch.blockedCodesList[conflict.idA].insert(constraintCodeA);
                 rch.blockedCodesList[conflict.idB].insert(constraintCodeB);
-                calculateNode(lch);
-                calculateNode(rch);
                 int lastConstraintTime = max(node.lastConstraintTime, cTime);
                 lch.lastConstraintTime = rch.lastConstraintTime = lastConstraintTime;
+                calculateNode(lch);
+                calculateNode(rch);
                 pq.push(lch);
                 pq.push(rch);
             }
@@ -352,7 +371,8 @@ struct CBSPlanner {
 }planner;
 
 void init() {
-    const string map = "Berlin_1_256";
+    //const string map = "Berlin_1_256";
+    const string map = "maze-32-32-2";
     const bool useEven = true;
     const int id = 1;
     const string scen =  useEven ? "scen-even" : "scen-random";
@@ -395,7 +415,7 @@ void init() {
     int cnt = 0;
     planner.robotCount = 0;
     while (getline(cin, line)) {
-        if (++cnt > 3) break;
+        if (++cnt > 8) break;
         stringstream ss(line);
         int bucket;
         string mapName;
