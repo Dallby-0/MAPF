@@ -92,7 +92,7 @@ struct AStar {
         // };
         //priority_queue<AStarNode,vector<AStarNode>, decltype(cmp)> pq(cmp); //这种情况不太适合用operator 结果被迫学习c++特性
         //lastConstraintTime += 30;
-        //cout << "astar " << sx <<" " << sy <<" " << ex <<" " << ey << " " << blockedCodes.size() << endl;
+        cout << "astar " << sx <<" " << sy <<" " << ex <<" " << ey << " " << blockedCodes.size() << endl;
         priority_queue<AStarNode> pq;
         auto initialNode = AStarNode(sx, sy, 0, minCost(sx, sy, ex, ey));
         pq.push(initialNode);
@@ -165,7 +165,7 @@ struct AStar {
                 //int cost = node.cost + (k >= 4 ? sq2 : 1);
             }
         }
-        //cout << "astar done " << ok <<endl;
+        cout << "astar done " << ok <<endl;
         if (ok) {
             path.clear();
             int currentNodeCode = finalNodeCode;
@@ -198,6 +198,8 @@ struct CBSNode {//目前lastConstraintTime要手动设置
     bool calculated = false;
     bool ok; //是否可以在当前冲突下找到路径（不限制无冲突）
     bool hasConflict;
+    vector<vector<Point>> cachedPaths;
+    int cachedConflictTime = 0;
     vector<set<int>> blockedCodesList;
     int presumedMinCost, lastConstraintTime;
     Conflict firstConflict;
@@ -220,20 +222,26 @@ struct CBSPlanner {
         node.hasConflict = false;
         node.ok = true;
         for (int i = 0; i < robotCount; i++) {
+            if (!node.cachedPaths[i].empty()) {
+                paths[i] = node.cachedPaths[i];
+                continue;
+            }
             auto &robot = robots[i];
             bool havePath = aStar.findPath(robot.sx, robot.sy, robot.ex, robot.ey, node.blockedCodesList[i], node.lastConstraintTime, paths[i]);
             if (!havePath) {
                 node.ok = false;
+                break;
             }
+            node.cachedPaths[i] = paths[i];
         }
-        if (node.ok) {//找新的冲突，低效实现
+        if (node.ok) {//找新的冲突，低效实现 事实上考虑到cache，并不算低效
             cout << "cal1\n";
             int mxLen = 0;
             for (auto &v : paths) {
                 mxLen = max(mxLen, (int)v.size());
             }
             //bool ok = true;
-            for (int i = 0; i < mxLen; i++) {
+            for (int i = max(0, node.cachedConflictTime - 1); i < mxLen; i++) {
                 map<Point, int> positionToId;
                 int id = 0;
                 for (auto &v : paths) {
@@ -249,6 +257,7 @@ struct CBSPlanner {
                         cout << "found posconf:" << v[i].x <<" " << v[i].y <<endl;
                         node.hasConflict = true;
                         node.firstConflict = Conflict(positionToId[curPoint], id, curPoint, curPoint, i);
+                        node.cachedConflictTime = i;
                         break;
                     }
                     //我懂了，如果要让已经结束的让位，那要一次性添加一大堆约束 麻了 过分的设定
@@ -270,6 +279,7 @@ struct CBSPlanner {
                                     cout << "found edgeconf\n";
                                     node.hasConflict = true;
                                     node.firstConflict = Conflict(idA, idB, va[i], vb[i], i);
+                                    node.cachedConflictTime = i;
                                     break;
                                 }
                             }
@@ -301,6 +311,7 @@ struct CBSPlanner {
         CBSNode initialNode;
         initialNode.lastConstraintTime = 0;
         initialNode.blockedCodesList.resize(robotCount);
+        initialNode.cachedPaths.resize(robotCount);
         calculateNode(initialNode);
         priority_queue<CBSNode> pq;
         pq.push(initialNode);
@@ -312,18 +323,20 @@ struct CBSPlanner {
             pq.pop();
             int totalCCount = 0;
             for (auto s : node.blockedCodesList) totalCCount += s.size();
-            cout << "totalCCount: " << totalCCount << endl;
+            cout << "totalCCount: " << totalCCount << " presumedMinCost: " << node.presumedMinCost << endl;
             if (node.presumedMinCost >= currentMinCost) {
                 break;
             }
             if (!node.hasConflict) {
                 currentMinCost = node.presumedMinCost;
-                cout << "solved! cost: " << currentMinCost << " " << dreamedMinCost << endl;
+                cout << "solved! cost: " << currentMinCost << " dreamedMinCost: " << dreamedMinCost << endl;
             }
             else { //拆成两份塞进去计算！！
                 cout << "conflict\n";
                 CBSNode lch, rch;
                 lch.blockedCodesList = rch.blockedCodesList = node.blockedCodesList;
+                lch.cachedPaths = rch.cachedPaths = node.cachedPaths;
+                lch.cachedConflictTime = rch.cachedConflictTime = node.cachedConflictTime;
                 Conflict conflict = node.firstConflict;
                 int cTime = conflict.time;
                 int constraintCodeA, constraintCodeB;
@@ -363,6 +376,8 @@ struct CBSPlanner {
                 if (rch.blockedCodesList[conflict.idB].contains(constraintCodeB)) {
                     cout << "bug B duplicated\n";
                 }
+                lch.cachedPaths[conflict.idA].clear();
+                rch.cachedPaths[conflict.idB].clear();
                 lch.blockedCodesList[conflict.idA].insert(constraintCodeA);
                 rch.blockedCodesList[conflict.idB].insert(constraintCodeB);
                 int lastConstraintTime = max(node.lastConstraintTime, cTime);
@@ -377,7 +392,7 @@ struct CBSPlanner {
 }planner;
 
 void init() {
-    const int limit = 20;
+    const int limit = 40;
     const string map = "Berlin_1_256";
     //const string map = "maze-32-32-2";
     const bool useEven = true;
