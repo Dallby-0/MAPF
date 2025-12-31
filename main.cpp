@@ -92,7 +92,7 @@ struct AStar {
         // };
         //priority_queue<AStarNode,vector<AStarNode>, decltype(cmp)> pq(cmp); //这种情况不太适合用operator 结果被迫学习c++特性
         //lastConstraintTime += 30;
-        cout << "astar " << sx <<" " << sy <<" " << ex <<" " << ey << " " << blockedCodes.size() << endl;
+        //cout << "astar " << sx <<" " << sy <<" " << ex <<" " << ey << " " << blockedCodes.size() << endl;
         priority_queue<AStarNode> pq;
         auto initialNode = AStarNode(sx, sy, 0, minCost(sx, sy, ex, ey));
         pq.push(initialNode);
@@ -105,10 +105,6 @@ struct AStar {
         while (!pq.empty()) {
             //cout << "aspq\n";
             AStarNode node = pq.top();
-            //cnt ++;
-            //if (cnt > 60000) {
-            //}
-
             pq.pop();
             if (node.t > lastConstraintTime) {
                 if (visitedAfterConstraints.count({node.x, node.y})) {
@@ -117,20 +113,25 @@ struct AStar {
                 }
                 visitedAfterConstraints.insert({node.x, node.y});
             }
-            //if (cnt > 36000) {
-                //cout << node.x << " " << node.y << " " << node.t << " " << node.predictedCost << " " << lastConstraintTime<<endl;
-            //}
             //cout << node.x << " " << node.y << " " << node.t << " " << node.predictedCost << " " << lastConstraintTime<<endl;
             if (node.x == ex && node.y == ey) {
                 ok = true;
-                finalNodeCode = node.encode();
-                break;
+                for (int t = node.t; t <= lastConstraintTime; t++) { //临时用一下 效率有点低
+                    if (blockedCodes.contains(Constraint::encode(node.x, node.y, t, 4))) {
+                        ok = false;
+                        break;
+                    }
+                }
+                if (ok) {
+                    finalNodeCode = node.encode();
+                    break;
+                }
             }
             for (int k = 0; k < 5; k++) {
                 if (k < 4) {
                     //规定在当前点不能进行朝向为k的动作（边冲突）
                     if (int codeAction = Constraint::encode(node.x, node.y, node.t, k); blockedCodes.contains(codeAction)){
-                        cout << "ASTAEDGEC: " << node.x << " " << node.y << " " << node.t << k <<endl;
+                        //cout << "ASTAEDGEC: " << node.x << " " << node.y << " " << node.t << k <<endl;
                         continue;
                     }
                     //点了下编译器代码优化成这一行了  这是c++xx？
@@ -145,7 +146,7 @@ struct AStar {
                 }
                 int nt = node.t + 1;
                 if (int codeNext = Constraint::encode(nx, ny, nt, 4); blockedCodes.contains(codeNext)) {
-                    cout << "ASTARPOSC: " << nx << " " << ny << " " << nt <<endl;
+                    //cout << "ASTARPOSC: " << nx << " " << ny << " " << nt <<endl;
                     continue;
                 }
                 AStarNode newNode(nx, ny, nt, nt + minCost(nx, ny, ex, ey));
@@ -164,7 +165,7 @@ struct AStar {
                 //int cost = node.cost + (k >= 4 ? sq2 : 1);
             }
         }
-        cout << "astar done " << ok <<endl;
+        //cout << "astar done " << ok <<endl;
         if (ok) {
             path.clear();
             int currentNodeCode = finalNodeCode;
@@ -232,30 +233,27 @@ struct CBSPlanner {
                 mxLen = max(mxLen, (int)v.size());
             }
             //bool ok = true;
-
-
             for (int i = 0; i < mxLen; i++) {
                 map<Point, int> positionToId;
                 int id = 0;
                 for (auto &v : paths) {
                     Point curPoint;
                     if (i < v.size()) {
-                        if (i < v.size()) {
-                            curPoint = v[i];
-                        }
-                        else {
-                            curPoint = v.back(); //停留也算位置
-                        }
-                        if (positionToId.contains(curPoint)) {
-                            //位置冲突
-                            cout << "found posconf:" << v[i].x <<" " << v[i].y <<endl;
-                            node.hasConflict = true;
-                            node.firstConflict = Conflict(positionToId[v[i]], id, v[i], v[i], i);
-                            break;
-                        }//todo 修复后出现了同样的位置冲突？
-                        //我懂了，如果要让已经结束的让位，那要一次性添加一大堆约束 麻了 过分的设定
-                        positionToId[curPoint] = id;
+                        curPoint = v[i];
                     }
+                    else {
+                        curPoint = v.back(); //停留也算位置
+                    }
+                    if (positionToId.contains(curPoint)) {
+                        //位置冲突
+                        cout << "found posconf:" << v[i].x <<" " << v[i].y <<endl;
+                        node.hasConflict = true;
+                        node.firstConflict = Conflict(positionToId[curPoint], id, curPoint, curPoint, i);
+                        break;
+                    }//todo 修复后出现了同样的位置冲突？
+                    //我懂了，如果要让已经结束的让位，那要一次性添加一大堆约束 麻了 过分的设定
+                    positionToId[curPoint] = id;
+
                     id++;
                 }
                 //cout <<"i size: " << i << " " << positionToId.size() << endl;
@@ -360,7 +358,7 @@ struct CBSPlanner {
                     constraintCodeB = Constraint::encode(pposB.x , pposB.y, cTime, dirB);
                 }
                 if (lch.blockedCodesList[conflict.idA].contains(constraintCodeA)) {
-                    cout << "bug A duplicated\n";
+                    cout << "bug A duplicated " << conflict.idA << " " <<conflict.posA.x << " " << conflict.posA.y << " " << conflict.time << endl;
                 }
                 if (rch.blockedCodesList[conflict.idB].contains(constraintCodeB)) {
                     cout << "bug B duplicated\n";
@@ -379,8 +377,9 @@ struct CBSPlanner {
 }planner;
 
 void init() {
-    //const string map = "Berlin_1_256";
-    const string map = "maze-32-32-2";
+    const int limit = 20;
+    const string map = "Berlin_1_256";
+    //const string map = "maze-32-32-2";
     const bool useEven = true;
     const int id = 1;
     const string scen =  useEven ? "scen-even" : "scen-random";
@@ -423,7 +422,7 @@ void init() {
     int cnt = 0;
     planner.robotCount = 0;
     while (getline(cin, line)) {
-        if (++cnt > 9) break;
+        if (++cnt > limit) break;
         stringstream ss(line);
         int bucket;
         string mapName;
