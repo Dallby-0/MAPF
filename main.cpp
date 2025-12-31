@@ -250,7 +250,7 @@ struct CBSPlanner {
                         node.hasConflict = true;
                         node.firstConflict = Conflict(positionToId[curPoint], id, curPoint, curPoint, i);
                         break;
-                    }//todo 修复后出现了同样的位置冲突？
+                    }
                     //我懂了，如果要让已经结束的让位，那要一次性添加一大堆约束 麻了 过分的设定
                     positionToId[curPoint] = id;
 
