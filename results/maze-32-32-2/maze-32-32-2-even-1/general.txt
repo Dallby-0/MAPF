@@ -1,0 +1,14 @@
+robotCount: 1 totalCost: 15 AStarNodes: 36 CBSNodes: 1 timecost: 4ms
+robotCount: 2 totalCost: 50 AStarNodes: 201 CBSNodes: 1 timecost: 5ms
+robotCount: 3 totalCost: 119 AStarNodes: 571 CBSNodes: 1 timecost: 7ms
+robotCount: 4 totalCost: 177 AStarNodes: 2715 CBSNodes: 3 timecost: 26ms
+robotCount: 5 totalCost: 226 AStarNodes: 11120 CBSNodes: 7 timecost: 68ms
+robotCount: 6 totalCost: 248 AStarNodes: 11197 CBSNodes: 7 timecost: 51ms
+robotCount: 7 totalCost: 303 AStarNodes: 20053 CBSNodes: 11 timecost: 89ms
+robotCount: 8 totalCost: 354 AStarNodes: 42586 CBSNodes: 25 timecost: 220ms
+robotCount: 9 totalCost: 452 AStarNodes: 17759248 CBSNodes: 2079 timecost: 60212ms
+robotCount: 10 totalCost: 465 AStarNodes: 17759274 CBSNodes: 2079 timecost: 58188ms
+robotCount: 11 totalCost: 469 AStarNodes: 17759282 CBSNodes: 2079 timecost: 57314ms
+robotCount: 12 totalCost: 563 AStarNodes: 17625157 CBSNodes: 2499 timecost: 59702ms
+robotCount: 13 totalCost: 579 AStarNodes: 17625191 CBSNodes: 2499 timecost: 58112ms
+robotCount: 14 totalCost: 634 AStarNodes: 32597545 CBSNodes: 4927 timecost: 113393ms
