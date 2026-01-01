@@ -3,6 +3,11 @@ using namespace std;
 
 //const double sq2 = 1.41421356237309504880;
 
+namespace GlobalStatus {
+    int totalAStarNodeCount;
+    int totalCBSNodeCount;
+}
+
 namespace M{
     int height, width;
     vector<vector<bool>> worldMap;
@@ -113,6 +118,7 @@ struct AStar {
                 }
                 visitedAfterConstraints.insert({node.x, node.y});
             }
+            GlobalStatus::totalAStarNodeCount++;
             //cout << node.x << " " << node.y << " " << node.t << " " << node.predictedCost << " " << lastConstraintTime<<endl;
             if (node.x == ex && node.y == ey) {
                 ok = true;
@@ -165,7 +171,7 @@ struct AStar {
                 //int cost = node.cost + (k >= 4 ? sq2 : 1);
             }
         }
-        cout << "astar done " << ok <<endl;
+        cout << "astar done " << ok << " " << GlobalStatus::totalAStarNodeCount << endl;
         if (ok) {
             path.clear();
             int currentNodeCode = finalNodeCode;
@@ -214,9 +220,12 @@ struct Robot {
 
 struct CBSPlanner {
     vector<Robot> robots;
+    vector<vector<Point>> ansPaths;
     int robotCount;
+    int ans;
     void calculateNode(CBSNode &node) {
         cout << "cal\n";
+        GlobalStatus::totalCBSNodeCount++;
         vector<vector<Point>> paths;
         paths.resize(robotCount);
         node.hasConflict = false;
@@ -262,7 +271,6 @@ struct CBSPlanner {
                     }
                     //我懂了，如果要让已经结束的让位，那要一次性添加一大堆约束 麻了 过分的设定
                     positionToId[curPoint] = id;
-
                     id++;
                 }
                 //cout <<"i size: " << i << " " << positionToId.size() << endl;
@@ -329,6 +337,8 @@ struct CBSPlanner {
             }
             if (!node.hasConflict) {
                 currentMinCost = node.presumedMinCost;
+                ans = currentMinCost;
+                ansPaths = node.cachedPaths;
                 cout << "solved! cost: " << currentMinCost << " dreamedMinCost: " << dreamedMinCost << endl;
             }
             else { //拆成两份塞进去计算！！
@@ -391,16 +401,19 @@ struct CBSPlanner {
     }
 }planner;
 
+
+const string map_ = "Berlin_1_256";
+//const string map = "maze-32-32-2";
+const bool useEven = true;
+const int id = 1;
+const string scen =  useEven ? "scen-even" : "scen-random";
+const string fileName = map_ + "-" + (useEven ? "even" : "random") + "-" + to_string(id);
+const string scenPath = "../maps/" + map_ + "/" + scen + "/" + fileName + ".scen";
+const string mapPath = "../maps/" + map_ + "/" + map_ + ".map";
+const string resultsPath = "../results/" + map_ + "/" + fileName;
+
 void init() {
-    const int limit = 40;
-    const string map = "Berlin_1_256";
-    //const string map = "maze-32-32-2";
-    const bool useEven = true;
-    const int id = 1;
-    const string scen =  useEven ? "scen-even" : "scen-random";
-    const string fileName = map + "-" + (useEven ? "even" : "random") + "-" + to_string(id);
-    const string scenPath = "../maps/" + map + "/" + scen + "/" + fileName + ".scen";
-    const string mapPath = "../maps/" + map + "/" + map + ".map";
+
     cout << "mapPath:" << mapPath << endl;
     cout << "scenPath:" << scenPath << endl;
     //read map
@@ -435,9 +448,9 @@ void init() {
     getline(cin, line);
     cout << line << endl;
     int cnt = 0;
-    planner.robotCount = 0;
+    //planner.robotCount = 0;
     while (getline(cin, line)) {
-        if (++cnt > limit) break;
+        //if (++cnt > limit) break;
         stringstream ss(line);
         int bucket;
         string mapName;
@@ -445,8 +458,9 @@ void init() {
         Robot robot;
         ss >> bucket >> mapName >> h >> w >> robot.sy >> robot.sx >> robot.ey >> robot.ex;
         planner.robots.push_back(robot);
-        planner.robotCount++;
+        //planner.robotCount++;
     }
+    filesystem::create_directories(resultsPath);
     cout << "init done\n";
 }
 
@@ -454,6 +468,28 @@ int main() {
     init();
     vector<Point> path;
     set<int> blockedCodes;
+    ofstream generalResults(resultsPath+"/general.txt");
+    for (int i = 0; i < planner.robots.size(); i++) {
+        ofstream currentPathInfo(resultsPath + "/pathInfo_" + to_string(i+1) + ".txt");
+        planner.robotCount = i + 1;
+        GlobalStatus::totalAStarNodeCount = 0;
+        GlobalStatus::totalCBSNodeCount = 0;
+        auto start = std::chrono::high_resolution_clock::now();
+        planner.solve();
+        auto end = std::chrono::high_resolution_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>
+                      (end - start);
+        generalResults <<"robotCount: " << i + 1 << " totalCost: " << planner.ans << " AStarNodes: " << GlobalStatus::totalAStarNodeCount << " CBSNodes: " << GlobalStatus::totalCBSNodeCount << " timecost: " << elapsed.count() << "ms" << endl;
+        int j = 0;
+        for (auto &v : planner.ansPaths) {
+            currentPathInfo << j << ":";
+            for (auto &p : v) {
+                currentPathInfo << "(" << p.x <<"," << p.y << ")" << ",";
+            }
+            j++;
+            currentPathInfo << endl;
+        }
+    }
     //aStar.findPath(92, 220, 65, 194, blockedCodes, 1e9, path);
     planner.solve();
     return 0;

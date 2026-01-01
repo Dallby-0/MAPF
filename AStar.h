@@ -7,7 +7,7 @@
 #include <bits/stdc++.h>
 using namespace std;
 struct AStar {
-
+    //总共几百行，懒得分文件，全塞main里了
 };
 
 #endif //MAPF_ASTAR_H
