@@ -403,7 +403,7 @@ struct CBSPlanner {
 
 
 const string map_ = "Berlin_1_256";
-//const string map = "maze-32-32-2";
+//const string map_ = "maze-32-32-2";
 const bool useEven = true;
 const int id = 1;
 const string scen =  useEven ? "scen-even" : "scen-random";
@@ -481,13 +481,29 @@ int main() {
                       (end - start);
         generalResults <<"robotCount: " << i + 1 << " totalCost: " << planner.ans << " AStarNodes: " << GlobalStatus::totalAStarNodeCount << " CBSNodes: " << GlobalStatus::totalCBSNodeCount << " timecost: " << elapsed.count() << "ms" << endl;
         int j = 0;
+        int maxPathlen =0;
         for (auto &v : planner.ansPaths) {
-            currentPathInfo << j << ":";
-            for (auto &p : v) {
-                currentPathInfo << "(" << p.x <<"," << p.y << ")" << ",";
+            maxPathlen = max(maxPathlen, (int)v.size());
+            // currentPathInfo << j << ":";
+            // for (auto &p : v) {
+            //     currentPathInfo << "(" << p.x <<"," << p.y << ")" << ",";
+            // }
+            // j++;
+            // currentPathInfo << endl;
+        }
+        for (int i = 0; i < maxPathlen; i++) {
+            currentPathInfo << i << ":";
+            for (auto &v : planner.ansPaths) {
+                Point p;
+                if (i >= v.size()) {
+                    p = v.back();
+                }
+                else {
+                    p = v[i];
+                }
+                currentPathInfo << "(" << p.y <<"," << p.x << ")" << ",";
             }
-            j++;
-            currentPathInfo << endl;
+            currentPathInfo << "\n";
         }
     }
     //aStar.findPath(92, 220, 65, 194, blockedCodes, 1e9, path);
